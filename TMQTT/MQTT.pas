@@ -16,9 +16,9 @@ uses
   SyncObjs,
 
   AtomQueue,
-
-  Net.CrossSocket,
+  Net.CrossSocket.Base, Net.CrossSocket ,
 {$IFDEF __SSL__}
+  Net.CrossSslSocket.Base
   Net.CrossSslSocket,
 {$IFDEF POSIX}
   Net.CrossSslDemoCert,
@@ -63,10 +63,11 @@ type
     FUsername: String;
     FPassword: String;
 
-    FSocket: {$IFDEF __SSL__}TCrossSslSocket{$ELSE}TCrossSocket{$ENDIF};
+    FSocket: {$IFDEF __SSL__}ICrossSslSocket{$ELSE}ICrossSocket{$ENDIF};
+    //FSocket: {$IFDEF __SSL__}TCrossSslSocket{$ELSE}TCrossSocket{$ENDIF};
 
     FKeepAliveTimer: TTimer;
-    FSessionTimer: TTimer;
+    //FSessionTimer: TTimer;
 
     ReceiveBuffer: TBytes;
 
@@ -269,7 +270,7 @@ implementation
 procedure TMQTT.ConnAckDo(sender: TObject; ReturnCode: Integer);
 begin
   // Load cache data to server;
-  FSessionTimer.Enabled := true;
+  //FSessionTimer.Enabled := true;
   LoadCacheFileToSend;
   if Assigned(OnConnAck) then
     OnConnAck(Self, ReturnCode);
@@ -306,8 +307,9 @@ procedure TMQTT.Connect;
 begin
   // Create socket and connect.
   FisConnected := false;
+
   FSocket.Connect(Self.FHostname, Self.FPort,
-    procedure(ASocket: THandle; ASuccess: boolean)
+    procedure(ASocket: ICrossConnection; ASuccess: boolean)
     var
       msg: TMQTTMessage;
       LConn: ICrossConnection;
@@ -344,7 +346,9 @@ begin
             (msg.VariableHeader as TMQTTConnectVarHeader).PasswordFlag := 0;
           end;
 
+         // FSocket.LockConnections.Values;
           LConn := FSocket.LockConnections.Values.ToArray[0];
+
           try
             if LConn <> nil then
               LConn.SendBytes(msg.ToBytes,
@@ -440,8 +444,8 @@ begin
   if Assigned(FKeepAliveTimer) then
     FreeAndNil(FKeepAliveTimer);
 
-  if Assigned(FSessionTimer) then
-    FreeAndNil(FSessionTimer);
+ // if Assigned(FSessionTimer) then
+ //   FreeAndNil(FSessionTimer);
 
   if Assigned(FSessionList) then
     FreeAndNil(FSessionList);
@@ -473,7 +477,7 @@ begin
   if isConnected then
   begin
     FKeepAliveTimer.Enabled := false;
-    FSessionTimer.Enabled := false;
+    //FSessionTimer.Enabled := false;
     msg := DisconnectMessage;
     try
       if WriteData(msg.ToBytes) then
@@ -1103,7 +1107,8 @@ function TMQTT.WriteData(const AData: TBytes): boolean;
 var
   LConn: ICrossConnection;
   sendB: boolean;
-  ConDr: TDictionary<THandle, ICrossConnection>;
+  ConDr: TDictionary<UInt64, ICrossConnection>;
+   //TDictionary<UInt64, ICrossConnection>;
 begin
 
   result := false;
@@ -1115,6 +1120,7 @@ begin
   begin
     if FSocket <> nil then
     begin
+
       ConDr := FSocket.LockConnections;
       try
         if ConDr <> nil then
@@ -1366,8 +1372,9 @@ begin
 
     end;
   except
-    // on E: Exception do
-    // syslog.LogByTime(E.Message);
+//     on E: Exception do
+//     ShowException(Self,e);
+      //syslog.LogByTime(E.Message);
   end;
 end;
 
